@@ -20,6 +20,9 @@ import numpy as np
 from scipy.optimize import minimize
 from scipy.special import expit, logsumexp
 
+from flask import Flask
+import threading
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ChatType
 from telegram.ext import (
@@ -43,7 +46,6 @@ except ImportError:
 # SOZLAMALAR
 # ============================================================
 
-# Token faqat server muhit o'zgaruvchisidan olinadi (kod ichida ko'rsatilmaydi)
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("DIQQAT: BOT_TOKEN muhit o'zgaruvchisida topilmadi!")
@@ -69,6 +71,21 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger("mock_bot")
 
 EDITING_NAMES = set()
+
+
+# ============================================================
+# FLASK VEB-SERVERI (Render Web Service talabi uchun)
+# ============================================================
+
+web_app = Flask(__name__)
+
+@web_app.route('/')
+def home():
+    return "Bot is running live!"
+
+def run_web():
+    port = int(os.environ.get("PORT", 10000))
+    web_app.run(host="0.0.0.0", port=port)
 
 
 # ============================================================
@@ -827,6 +844,12 @@ async def all_tests(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     init_db()
+    
+    # Flask serverini alohida oqimda (thread) ishga tushiramiz
+    t = threading.Thread(target=run_web)
+    t.daemon = True
+    t.start()
+    
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CallbackQueryHandler(inline_handler))
@@ -837,6 +860,7 @@ def main():
     app.add_handler(CommandHandler("open", open_test))
     app.add_handler(CommandHandler("export", export_results))
     app.add_handler(MessageHandler(filters.Document.ALL, receive_document))
+    
     app.run_polling()
 
 if __name__ == "__main__":
